@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admission Note Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #F4F2ED;
+  --surface: #FDFCFA;
+  --border: #DDD8D0;
+  --border-s: #C8C0B4;
+  --text: #1A1714;
+  --muted: #7A7268;
+  --faint: #B0A898;
+  --accent: #1A3A5C;
+  --accent-l: #E8EFF6;
+  --accent-m: #4A7AB5;
+  --danger: #C0392B;
+  --danger-bg: #FDF0EE;
+  --success: #1E6B45;
+  --success-bg: #EBF5F0;
+  --warn: #7B4F00;
+  --warn-bg: #FEF6E4;
+  --mono: 'DM Mono', monospace;
+  --serif: 'DM Serif Display', serif;
+  --sans: 'Instrument Sans', sans-serif;
+  --r: 8px; --rl: 14px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
+
+.site-header {
+  background: var(--accent); color: white; padding: 0 1.5rem;
+  height: 52px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 100;
+}
+.site-header h1 { font-family: var(--serif); font-size: 18px; font-weight: 400; }
+.site-header .sub { font-size: 11px; opacity: .55; font-family: var(--mono); }
+
+.api-btn {
+  font-family: var(--mono); font-size: 10px; padding: 3px 10px;
+  border-radius: 20px; border: 1px solid rgba(255,255,255,.25);
+  color: rgba(255,255,255,.7); cursor: pointer; background: none;
+  transition: all .2s;
+}
+.api-btn:hover { border-color: rgba(255,255,255,.6); color: white; }
+.api-btn.set { border-color: #4CAF50; color: #81C784; }
+
+.layout { display: grid; grid-template-columns: 380px 1fr; min-height: calc(100vh - 52px); }
+
+/* LEFT FORM */
+.form-panel {
+  background: var(--surface); border-right: 1px solid var(--border);
+  overflow-y: auto; height: calc(100vh - 52px); position: sticky; top: 52px;
+}
+.form-inner { padding: 1.25rem; }
+
+.sec-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--faint);
+  margin: 1.1rem 0 .5rem; display: flex; align-items: center; gap: 6px;
+}
+.sec-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+.field { margin-bottom: 8px; }
+.field label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; font-weight: 500; }
+.field input, .field textarea, .field select {
+  width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: var(--r); font-family: var(--sans); font-size: 13px;
+  color: var(--text); background: white; transition: border-color .15s; outline: none;
+}
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color: var(--accent-m); box-shadow: 0 0 0 3px rgba(74,122,181,.1);
+}
+.field textarea { resize: vertical; min-height: 64px; line-height: 1.6; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+
+/* Oncology toggle */
+.onco-toggle {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--r);
+  border: 1.5px solid var(--border); background: white;
+  cursor: pointer; margin-bottom: 10px; transition: all .2s;
+}
+.onco-toggle:hover { border-color: var(--accent-m); }
+.onco-toggle.active { border-color: var(--accent-m); background: var(--accent-l); }
+.toggle-circle {
+  width: 36px; height: 20px; border-radius: 10px; background: var(--border);
+  position: relative; transition: background .2s; flex-shrink: 0;
+}
+.toggle-circle::after {
+  content: ''; position: absolute; width: 16px; height: 16px;
+  border-radius: 50%; background: white; top: 2px; left: 2px;
+  transition: transform .2s;
+}
+.onco-toggle.active .toggle-circle { background: var(--accent-m); }
+.onco-toggle.active .toggle-circle::after { transform: translateX(16px); }
+.toggle-text { font-size: 13px; font-weight: 500; }
+.toggle-sub { font-size: 11px; color: var(--muted); }
+
+.onco-fields { display: none; }
+.onco-fields.show { display: block; }
+
+/* ROS checkboxes */
+.ros-grid { display: grid; gap: 6px; }
+.ros-system { border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+.ros-sys-hdr {
+  padding: 6px 10px; background: var(--bg); font-size: 11px; font-weight: 600;
+  color: var(--muted); cursor: pointer; display: flex; justify-content: space-between;
+  align-items: center; user-select: none;
+}
+.ros-sys-hdr:hover { background: var(--accent-l); color: var(--accent); }
+.ros-items { padding: 8px 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; display: none; }
+.ros-items.open { display: grid; }
+.ros-item { display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; }
+.ros-item input[type=checkbox] { width: 13px; height: 13px; cursor: pointer; accent-color: var(--accent-m); }
+
+/* PE items */
+.pe-abnormal { background: var(--warn-bg); border: 1px solid #F5C36B; border-radius: var(--r); padding: 8px 10px; }
+
+/* Generate btn */
+.gen-btn {
+  width: 100%; padding: 11px; background: var(--accent); color: white;
+  border: none; border-radius: var(--r); font-family: var(--sans);
+  font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all .2s; letter-spacing: .02em;
+}
+.gen-btn:hover { background: #0F2A45; }
+.gen-btn:disabled { opacity: .5; cursor: not-allowed; }
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: white; border-radius: 50%; animation: spin .7s linear infinite; display: none; }
+.gen-btn.loading .spinner { display: block; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* RIGHT OUTPUT */
+.output-panel { padding: 1.5rem; overflow-y: auto; background: var(--bg); }
+.out-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.out-title { font-family: var(--serif); font-size: 22px; color: var(--text); font-style: italic; }
+
+.sections-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+.note-section {
+  background: white; border: 1px solid var(--border); border-radius: var(--rl);
+  overflow: hidden;
+}
+.note-sec-hdr {
+  background: var(--accent); color: white; padding: 8px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.note-sec-title { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; font-weight: 500; }
+.copy-sec-btn {
+  padding: 3px 10px; border: 1px solid rgba(255,255,255,.3); border-radius: 20px;
+  font-size: 10px; color: rgba(255,255,255,.8); cursor: pointer; background: none;
+  font-family: var(--mono); transition: all .15s;
+}
+.copy-sec-btn:hover { border-color: white; color: white; }
+.note-sec-body {
+  padding: 1rem 1.25rem; font-family: var(--mono); font-size: 12.5px;
+  line-height: 1.85; color: var(--text); white-space: pre-wrap;
+  min-height: 40px;
+}
+.note-sec-body.editable { outline: none; }
+.note-sec-body.editable:focus { background: #FAFAF8; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 400px; text-align: center; gap: 10px;
+}
+.empty-icon { width: 56px; height: 56px; border: 1.5px solid var(--border-s); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--faint); font-family: var(--serif); font-size: 20px; font-style: italic; }
+.empty-title { font-family: var(--serif); font-size: 20px; color: var(--muted); font-style: italic; }
+.empty-sub { font-size: 12px; color: var(--faint); max-width: 240px; line-height: 1.7; }
+
+.top-btns { display: flex; gap: 8px; }
+.tbtn {
+  padding: 6px 14px; border: 1px solid var(--border-s); border-radius: var(--r);
+  background: white; font-family: var(--sans); font-size: 12px; font-weight: 500;
+  cursor: pointer; color: var(--muted); transition: all .15s;
+}
+.tbtn:hover { border-color: var(--accent-m); color: var(--accent); background: var(--accent-l); }
+.tbtn.primary { background: var(--accent); color: white; border-color: var(--accent); }
+.tbtn.primary:hover { background: #0F2A45; }
+
+/* Modal */
+.modal-ov { display: none; position: fixed; inset: 0; background: rgba(26,23,20,.5); z-index: 200; align-items: center; justify-content: center; }
+.modal-ov.open { display: flex; }
+.modal { background: white; border-radius: var(--rl); padding: 1.75rem; width: 380px; max-width: 90vw; }
+.modal h3 { font-family: var(--serif); font-size: 18px; font-style: italic; margin-bottom: .4rem; }
+.modal p { font-size: 12px; color: var(--muted); margin-bottom: .75rem; line-height: 1.7; }
+.modal input { width: 100%; padding: 8px 10px; border: 1px solid var(--border-s); border-radius: var(--r); font-family: var(--mono); font-size: 12px; margin-bottom: 10px; outline: none; }
+.modal input:focus { border-color: var(--accent-m); }
+.modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-thumb { background: var(--border-s); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div>
+    <h1>Admission Note Generator</h1>
+  </div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="sub">NTUH · Clinical Documentation</span>
+    <button class="api-btn" id="api-badge" onclick="openModal()">⚙ API Key</button>
+  </div>
+</header>
+
+<!-- API Modal -->
+<div class="modal-ov" id="modal">
+  <div class="modal">
+    <h3>Anthropic API Key</h3>
+    <p>Key 儲存於瀏覽器本機，不上傳任何伺服器。<br>取得 Key：<code>console.anthropic.com</code> → API Keys</p>
+    <input type="password" id="api-input" placeholder="sk-ant-api03-...">
+    <div class="modal-btns">
+      <button class="tbtn" onclick="closeModal()">取消</button>
+      <button class="tbtn primary" onclick="saveKey()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="layout">
+<!-- ─── LEFT PANEL ───────────────────────────────────────── -->
+<aside class="form-panel">
+<div class="form-inner">
+
+<!-- BASIC -->
+<div class="sec-label">基本資料</div>
+<div class="grid3">
+  <div class="field"><label>年齡</label><input id="age" placeholder="56"></div>
+  <div class="field"><label>性別</label><select id="sex"><option value="male">Male</option><option value="female">Female</option></select></div>
+  <div class="field"><label>入院日期</label><input id="admit-date" type="date"></div>
+</div>
+<div class="grid2">
+  <div class="field"><label>科別</label><input id="service" placeholder="Thoracic Surgery"></div>
+  <div class="field"><label>入院途徑</label><select id="route"><option>via ED</option><option>via OPD</option><option>direct admission</option><option>transferred from OSH</option></select></div>
+</div>
+
+<!-- ONCOLOGY TOGGLE -->
+<div class="sec-label">腫瘤科模式</div>
+<div class="onco-toggle" id="onco-toggle" onclick="toggleOnco()">
+  <div class="toggle-circle" id="toggle-circle"></div>
+  <div>
+    <div class="toggle-text">腫瘤科病人</div>
+    <div class="toggle-sub">啟用後可貼入過去病摘</div>
+  </div>
+</div>
+<div class="onco-fields" id="onco-fields">
+  <div class="field">
+    <label>上次入院病摘（Previous Discharge Summary）</label>
+    <textarea id="prev-summary" style="min-height:90px" placeholder="貼入上次出院病摘..."></textarea>
+  </div>
+  <div class="field">
+    <label>上次住院治療經過（Previous Hospital Course）</label>
+    <textarea id="prev-course" style="min-height:90px" placeholder="貼入上次住院治療經過..."></textarea>
+  </div>
+</div>
+
+<!-- CHIEF COMPLAINT -->
+<div class="sec-label">主訴 Chief Complaint</div>
+<div class="field"><textarea id="cc" style="min-height:48px" placeholder="e.g. progressive dyspnea and productive cough for 3 days"></textarea></div>
+
+<!-- PMH -->
+<div class="sec-label">病史 Patient History</div>
+<div class="field">
+  <label>Underlying diseases（每行一個 # 項目）</label>
+  <textarea id="pmh" style="min-height:72px" placeholder="# HTN&#10;# DM type 2&#10;# HFrEF EF 35%"></textarea>
+</div>
+<div class="field">
+  <label>HPI 重點（條列，Claude 轉成敘事段落）</label>
+  <textarea id="hpi" style="min-height:80px" placeholder="- sudden onset dyspnea 3 days ago&#10;- productive yellow sputum, low-grade fever 38.1°C&#10;- visited local clinic, CXR showed opacity&#10;- no rash, no leg swelling&#10;- no sick contact"></textarea>
+</div>
+<div class="grid2">
+  <div class="field"><label>Allergy / ADR</label><input id="allergy" placeholder="NKDA"></div>
+  <div class="field"><label>Smoking / Alcohol</label><input id="habits" placeholder="1 PPD×20yr; denied"></div>
+</div>
+<div class="field"><label>Medications（條列）</label><textarea id="meds" style="min-height:52px" placeholder="Metformin 500mg BID&#10;Amlodipine 5mg QD"></textarea></div>
+
+<!-- ROS — quick toggles for POSITIVE findings -->
+<div class="sec-label">系統性回顧 — 陽性發現</div>
+<div style="font-size:11px;color:var(--muted);margin-bottom:6px">預設全部陰性。勾選本次有症狀的項目：</div>
+<div class="ros-grid" id="ros-grid"></div>
+
+<!-- VITALS -->
+<div class="sec-label">生命徵象</div>
+<div class="grid3">
+  <div class="field"><label>BH (cm)</label><input id="bh" placeholder="170"></div>
+  <div class="field"><label>BW (kg)</label><input id="bw" placeholder="70"></div>
+  <div class="field"><label>Pain score</label><input id="pain" placeholder="0"></div>
+</div>
+<div class="grid3">
+  <div class="field"><label>T (°C)</label><input id="temp" placeholder="38.5"></div>
+  <div class="field"><label>P (bpm)</label><input id="pulse" placeholder="92"></div>
+  <div class="field"><label>R (/min)</label><input id="rr" placeholder="20"></div>
+</div>
+<div class="grid2">
+  <div class="field"><label>BP (mmHg)</label><input id="bp" placeholder="138/86"></div>
+  <div class="field"><label>SpO₂</label><input id="spo2" placeholder="96% RA"></div>
+</div>
+
+<!-- NEURO -->
+<div class="sec-label">神經學檢查</div>
+<div class="grid3">
+  <div class="field"><label>Consciousness</label><input id="consciousness" placeholder="Clear, alert"></div>
+  <div class="field"><label>Muscle power</label><input id="muscle" placeholder="5/5 all"></div>
+  <div class="field"><label>Gait</label><input id="gait" placeholder="Stable"></div>
+</div>
+
+<!-- PE ABNORMAL FINDINGS -->
+<div class="sec-label">理學檢查 — 只填異常</div>
+<div class="pe-abnormal">
+  <div style="font-size:11px;color:var(--warn);margin-bottom:6px;font-weight:600">⚠ 正常項目已預設，只需填入異常發現</div>
+  <div class="field"><label>HEENT 異常</label><input id="pe-heent" placeholder="e.g. scleral icterus, petechiae of palate"></div>
+  <div class="field"><label>Chest 異常</label><input id="pe-chest" placeholder="e.g. crackles right lower lobe, dullness on percussion"></div>
+  <div class="field"><label>Heart 異常</label><input id="pe-heart" placeholder="e.g. irregular rhythm, grade 2/6 systolic murmur"></div>
+  <div class="field"><label>Abdomen 異常</label><input id="pe-abd" placeholder="e.g. RUQ tenderness, hepatomegaly 2cm below RCM"></div>
+  <div class="field"><label>Extremities 異常</label><input id="pe-ext" placeholder="e.g. 2+ pitting edema bilateral lower limbs"></div>
+  <div class="field"><label>其他發現</label><input id="pe-other" placeholder="e.g. skin rash, lymphadenopathy"></div>
+</div>
+
+<!-- LABS & REPORTS -->
+<div class="sec-label">檢驗 & 報告</div>
+<div class="field"><label>檢驗紀錄 Lab（直接從 HIS 貼入）</label><textarea id="lab-raw" style="min-height:80px;font-family:var(--mono);font-size:12px" placeholder="WBC 12.5 H&#10;Hb 10.2 L&#10;Plt 210&#10;CRP 85.3 H..."></textarea></div>
+<div class="field"><label>檢查紀錄 Examination（ECG / Scope 等，無則留空）</label><textarea id="exam-raw" style="min-height:52px" placeholder="ECG: sinus tachycardia, no ST change"></textarea></div>
+<div class="field"><label>影像報告 Imaging（無則留空）</label><textarea id="imaging-raw" style="min-height:52px" placeholder="CXR: increased opacity right lower lung field, no cardiomegaly"></textarea></div>
+<div class="field"><label>病理報告 Pathology（無則留空）</label><textarea id="path-raw" style="min-height:52px" placeholder="若無則留空"></textarea></div>
+
+<!-- DIAGNOSIS & PLAN -->
+<div class="sec-label">臆斷 & 計畫</div>
+<div class="field"><label>Tentative Diagnosis（條列）</label><textarea id="dx" style="min-height:52px" placeholder="1. CAP right lower lobe&#10;2. DM type 2&#10;3. HTN"></textarea></div>
+<div class="field"><label>住院目標 For _____</label><input id="goal" placeholder="pneumonia management"></div>
+<div class="field"><label>計畫 Plan（醫師輸入）</label><textarea id="plan" style="min-height:72px" placeholder="1. Ceftriaxone 1g Q12H IV&#10;2. Monitor O2 sat, fever curve&#10;3. Sputum culture pending"></textarea></div>
+
+<button class="gen-btn" id="gen-btn" onclick="generate()">
+  <div class="spinner" id="spinner"></div>
+  <span id="btn-txt">Generate Admission Note</span>
+</button>
+
+</div><!-- form-inner -->
+</aside>
+
+<!-- ─── RIGHT PANEL ──────────────────────────────────────── -->
+<main class="output-panel">
+  <div class="out-header">
+    <div class="out-title">Admission Note</div>
+    <div class="top-btns">
+      <button class="tbtn" onclick="copyAll()">複製全文</button>
+      <button class="tbtn" onclick="clearAll()">清除</button>
+    </div>
+  </div>
+
+  <div id="empty-state" class="empty-state">
+    <div class="empty-icon">Rx</div>
+    <div class="empty-title">尚未生成病歷</div>
+    <div class="empty-sub">填寫左側表單後點擊 Generate，各段落可獨立複製貼入 HIS 系統。</div>
+  </div>
+
+  <div class="sections-wrap" id="sections-wrap" style="display:none"></div>
+</main>
+</div>
+
+<script>
+// ── API Key ───────────────────────────────────────────────
+let apiKey = localStorage.getItem('anthropic_key') || '';
+function updateBadge(){
+  const b=document.getElementById('api-badge');
+  b.textContent=apiKey?'✓ Key 已設定':'⚙ API Key';
+  b.classList.toggle('set',!!apiKey);
+}
+updateBadge();
+function openModal(){ document.getElementById('api-input').value=apiKey; document.getElementById('modal').classList.add('open'); }
+function closeModal(){ document.getElementById('modal').classList.remove('open'); }
+function saveKey(){ apiKey=document.getElementById('api-input').value.trim(); localStorage.setItem('anthropic_key',apiKey); updateBadge(); closeModal(); }
+document.getElementById('modal').addEventListener('click',e=>{ if(e.target===e.currentTarget) closeModal(); });
+
+// ── Oncology toggle ───────────────────────────────────────
+let isOnco = false;
+function toggleOnco(){
+  isOnco = !isOnco;
+  document.getElementById('onco-toggle').classList.toggle('active', isOnco);
+  document.getElementById('onco-fields').classList.toggle('show', isOnco);
+}
+
+// ── ROS data ─────────────────────────────────────────────
+const ROS_SYSTEMS = [
+  { name:'General', items:['Fever','Chills','Weight loss','Night sweating','Poor appetite'] },
+  { name:'Head', items:['Headache','Dizziness','Blurred vision','Diplopia'] },
+  { name:'ENT', items:['Hearing impairment','Tinnitus','Vertigo','Otalgia','Otorrhea','Rhinorrhea','Epistaxis','Stuffy nose','Oral ulcer'] },
+  { name:'Respiratory', items:['Shortness of breath','Cough','Sputum','Hemoptysis','Pleuritic chest pain'] },
+  { name:'Cardiovascular', items:['Exertional dyspnea','PND','Orthopnea','Edema','Chest tightness','Palpitation'] },
+  { name:'Gastrointestinal', items:['Nausea','Vomiting','Hematemesis','Dysphagia','Odynophagia','Abdominal pain','Heartburn','Acid regurgitation','Diarrhea','Constipation','Incontinence','Tarry stool','Bloody stool','Tenesmus','Small caliber stool'] },
+  { name:'Urogenital', items:['Dysuria','Urinary frequency','Supra-pubic pain','Hematuria','Urgency','Decreased urine','Increased urine'] },
+  { name:'Musculoskeletal', items:['Arthralgia','Swollen joints','Bone pain','Myalgia','Limb weakness','Limb numbness'] },
+  { name:'Metabolic', items:['Heat intolerance','Cold intolerance'] },
+  { name:'Skin', items:['Skin rash','Skin tumor','Purpura','Itchiness','Cyanosis'] },
+];
+
+function buildROS(){
+  const grid = document.getElementById('ros-grid');
+  ROS_SYSTEMS.forEach((sys, si) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'ros-system';
+    const hdr = document.createElement('div');
+    hdr.className = 'ros-sys-hdr';
+    hdr.innerHTML = `<span>${sys.name}</span><span id="ros-count-${si}" style="font-size:10px;color:var(--accent-m)"></span>`;
+    hdr.onclick = () => {
+      const items = document.getElementById(`ros-items-${si}`);
+      items.classList.toggle('open');
+      hdr.querySelector('span:last-child').textContent = items.classList.contains('open') ? '▲' : (getROSCount(si) > 0 ? `+${getROSCount(si)}` : '');
+    };
+    const items = document.createElement('div');
+    items.className = 'ros-items';
+    items.id = `ros-items-${si}`;
+    sys.items.forEach((item, ii) => {
+      const label = document.createElement('label');
+      label.className = 'ros-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = `ros-${si}-${ii}`;
+      cb.onchange = () => updateROSCount(si);
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(item));
+      items.appendChild(label);
+    });
+    wrap.appendChild(hdr);
+    wrap.appendChild(items);
+    grid.appendChild(wrap);
+  });
+}
+
+function getROSCount(si){
+  return ROS_SYSTEMS[si].items.filter((_,ii) => document.getElementById(`ros-${si}-${ii}`)?.checked).length;
+}
+function updateROSCount(si){
+  const c = getROSCount(si);
+  const span = document.getElementById(`ros-count-${si}`);
+  if(span) span.textContent = c > 0 ? `+${c} 陽性` : '';
+}
+
+function getPositiveROS(){
+  const pos = {};
+  ROS_SYSTEMS.forEach((sys, si) => {
+    const positives = sys.items.filter((_,ii) => document.getElementById(`ros-${si}-${ii}`)?.checked);
+    if(positives.length) pos[sys.name] = positives;
+  });
+  return pos;
+}
+
+buildROS();
+
+// ── Helpers ───────────────────────────────────────────────
+const g = id => document.getElementById(id)?.value?.trim() || '';
+
+function buildROSText(){
+  const positive = getPositiveROS();
+  const lines = ROS_SYSTEMS.map(sys => {
+    const positiveItems = positive[sys.name] || [];
+    const items = sys.items.map(item => {
+      const isPos = positiveItems.includes(item);
+      return `${item}(${isPos ? '+' : '-'})`;
+    });
+    return `${sys.name}: ${items.join(', ')}`;
+  });
+  return lines.join('\n');
+}
+
+function buildPEText(){
+  const heent = g('pe-heent');
+  const chest = g('pe-chest');
+  const heart = g('pe-heart');
+  const abd = g('pe-abd');
+  const ext = g('pe-ext');
+  const other = g('pe-other');
+  const bh=g('bh'), bw=g('bw'), temp=g('temp'), pulse=g('pulse'), rr=g('rr'), bp=g('bp'), spo2=g('spo2'), pain=g('pain');
+  const cons=g('consciousness'), muscle=g('muscle'), gait=g('gait');
+
+  let pe = `BH: ${bh||'___'} cm,  BW: ${bw||'___'} kg,\nT: ${temp||'___'} °C,  P: ${pulse||'___'} bpm,  R: ${rr||'___'} /min,\nBP: ${bp||'___ / ___'} mmHg,  SpO₂: ${spo2||'___'},\nPain score: ${pain||'0'}\n\nNeurological Examination:\n. Consciousness: ${cons||'Clear, alert'}\n. Muscle power: ${muscle||'5/5 all limbs'}\n. Gait: ${gait||'Stable'}\n\n`;
+  pe += `HEENT\n- Conjunctiva: ${heent ? 'see below' : 'not pale'}, Sclera: ${heent && heent.includes('icterus') ? 'icteric' : 'anicteric'}\n`;
+  if(heent) pe += `- ${heent}\n`;
+  pe += `- Neck: soft, lymphadenopathy (-), jugular vein engorgement (-)\n\n`;
+  pe += `Chest:\n- Symmetric movement\n`;
+  if(chest) pe += `- ${chest}\n`;
+  else pe += `- Wheezing (-), crackle (-)\n`;
+  pe += `\nHeart: ${heart || 'regular heart beats, no heart murmur'}\n\n`;
+  pe += `Abdomen:\n- Soft, striae (-)\n`;
+  if(abd) pe += `- ${abd}\n`;
+  else pe += `- Tenderness (-), rebounding pain (-)\n`;
+  pe += `- Bowel sound: Normoactive\n`;
+  pe += `\nExtremities: ${ext || 'No pitting edema'}`;
+  if(other) pe += `\n\nOther findings:\n- ${other}`;
+  return pe;
+}
+
+// ── Generate ──────────────────────────────────────────────
+async function generate(){
+  if(!apiKey){ openModal(); return; }
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled=true; btn.classList.add('loading');
+  document.getElementById('btn-txt').textContent='生成中…';
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('sections-wrap').style.display='none';
+
+  const admitDate = document.getElementById('admit-date').value || new Date().toISOString().split('T')[0];
+  const sex = g('sex') === 'male' ? 'male' : 'female';
+  const pronoun = sex === 'male' ? 'He' : 'She';
+  const positiveROS = getPositiveROS();
+  const hasPositiveROS = Object.keys(positiveROS).length > 0;
+  const rosText = buildROSText();
+
+  // Build oncology section if needed
+  let oncoSection = '';
+  if(isOnco){
+    const prevSum = g('prev-summary');
+    const prevCourse = g('prev-course');
+    if(prevSum || prevCourse){
+      oncoSection = `\n\nONCOLOGY CONTEXT (for Patient History integration):\nPrevious discharge summary:\n${prevSum||'(not provided)'}\n\nPrevious hospital course:\n${prevCourse||'(not provided)'}`;
+    }
+  }
+
+  const prompt = `You are a senior clinical physician at National Taiwan University Hospital. Generate an Admission Note following the STRICT section format below.
+
+OUTPUT RULES:
+1. Write in professional academic medical English throughout
+2. First occurrence of any medical abbreviation must include full form in parentheses, e.g., CAP (community-acquired pneumonia)
+3. All dates in YYYY/MM/DD format
+4. Do NOT add preamble, commentary, or section headers beyond what is specified — output ONLY the content of each section
+5. I will assemble the sections — output each section separated by the delimiter: ===SECTION===
+6. Sections in order: CC | HISTORY | ROS | PE | LAB | EXAM | IMAGING | PATHOLOGY | DIAGNOSIS | SOAP
+
+---
+
+PATIENT DATA:
+Age: ${g('age')} years old, Sex: ${sex}
+Admission: ${admitDate}, ${g('route')}
+Service: ${g('service')}
+Chief Complaint: ${g('cc')}
+Underlying diseases: ${g('pmh')}
+HPI key points: ${g('hpi')}
+Allergy/ADR: ${g('allergy')||'No known drug allergy (NKDA)'}
+Habits: ${g('habits')||'Denied all'}
+Medications: ${g('meds')||'None'}
+Oncology mode: ${isOnco ? 'YES' : 'NO'}${oncoSection}
+
+ROS positive findings: ${hasPositiveROS ? JSON.stringify(positiveROS) : 'None (all negative)'}
+
+Lab data (raw): ${g('lab-raw')||'Pending'}
+Examination data: ${g('exam-raw')||'Nil'}
+Imaging data: ${g('imaging-raw')||'Nil'}
+Pathology data: ${g('path-raw')||'Nil'}
+Tentative Diagnosis: ${g('dx')||'[To be documented]'}
+Admission goal: ${g('goal')||'[To be documented]'}
+Plan: ${g('plan')||'[To be documented]'}
+
+---
+
+SECTION 1 — CC (Chief Complaint):
+Write ONE sentence only. State the main presenting symptom(s) with duration.
+Format: [symptom], [duration]
+===SECTION===
+
+SECTION 2 — HISTORY (Patient History):
+Follow NEJM MGH Case Records style STRICTLY:
+
+Opening line MUST be:
+"${pronoun.replace('He','He').replace('She','She')} is a ${g('age')}-year-old ${sex} who has the following underlying disease${g('pmh') ? 's' : ''}:"
+Then list each PMH as "# [condition]"
+
+Then write HPI as flowing narrative paragraphs (NO bullet points):
+- Chronological order with explicit time anchors ("X days before the current presentation...")
+- Weave in relevant past history, medications, social history naturally
+- Include pertinent negatives
+- Use past tense throughout
+- First mention of any abbreviation must include full form
+
+${isOnco ? `ONCOLOGY REQUIREMENT: Since this is an oncology patient, integrate ALL previous treatment history from the discharge summary and hospital course provided. Then describe this current admission with temporal context. Structure:
+1. Opening + PMH list
+2. Oncology treatment history (integrated from previous summaries)  
+3. Current presentation and reason for this admission` : ''}
+===SECTION===
+
+SECTION 3 — ROS (Review of Systems):
+Output EXACTLY this format for ALL systems. Mark each symptom (+) if positive, (-) if negative.
+Use the patient's positive findings provided:
+${rosText}
+===SECTION===
+
+SECTION 4 — PE (Physical Examination):
+Output EXACTLY as pre-built below. Do NOT modify the fixed structure.
+${buildPEText()}
+===SECTION===
+
+SECTION 5 — LAB (Laboratory Report):
+Output the lab data as provided. If none, write: Nil
+Parse and organize if multiple panels present. Mark abnormal values with (H) or (L).
+Data: ${g('lab-raw')||'Nil'}
+===SECTION===
+
+SECTION 6 — EXAM (Examination Report):
+Output as provided. If none, write: Nil
+Data: ${g('exam-raw')||'Nil'}
+===SECTION===
+
+SECTION 7 — IMAGING (Imaging Report):
+Output as provided. If none, write: Nil
+Data: ${g('imaging-raw')||'Nil'}
+===SECTION===
+
+SECTION 8 — PATHOLOGY (Pathology Report):
+Output as provided. If none, write: Nil
+Data: ${g('path-raw')||'Nil'}
+===SECTION===
+
+SECTION 9 — DIAGNOSIS (Tentative Diagnosis):
+List the diagnoses exactly as provided, numbered.
+${g('dx')||'[To be documented by physician]'}
+===SECTION===
+
+SECTION 10 — SOAP (Medical Needs and Care Plan):
+Format EXACTLY as follows:
+
+* For ${g('goal')||'[admission goal]'}
+
+S:
+[List presenting symptoms as bullet points, extracted from HPI]
+
+O:
+[Lab]
+[List only abnormal or clinically relevant lab values]
+
+[Image]
+[List key imaging findings]
+
+A:
+${g('dx')||'[diagnoses]'}
+
+P:
+${g('plan')||'[To be documented by physician]'}`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2000, messages:[{role:'user',content:prompt}] })
+    });
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message);
+    const full = data.content?.map(b=>b.text||'').join('') || '';
+    renderSections(full, admitDate);
+  } catch(e){
+    alert('Error: ' + e.message);
+    document.getElementById('empty-state').style.display='flex';
+  }
+
+  btn.disabled=false; btn.classList.remove('loading');
+  document.getElementById('btn-txt').textContent='Generate Admission Note';
+}
+
+const SECTION_DEFS = [
+  { key:'cc',      label:'主訴 (Chief Complaint)',                          tag:'#[主訴(Chief Complaint)]' },
+  { key:'history', label:'病史 (Patient History)',                           tag:'#[病史(Patient History)]' },
+  { key:'ros',     label:'系統性回顧 (Review of Systems)',                   tag:'#[系統性回顧(Review of Systems)]' },
+  { key:'pe',      label:'身體診察 (Physical Examination)',                  tag:'#[身體診察(Physical Examination)]' },
+  { key:'lab',     label:'檢驗紀錄 (Laboratory Report)',                     tag:'#[檢驗紀錄(Laboratory Report)]' },
+  { key:'exam',    label:'檢查紀錄 (Examination Report)',                    tag:'#[檢查紀錄(Examination Report)]' },
+  { key:'imaging', label:'影像報告 (Imaging Report)',                        tag:'#[影像報告(Imaging Report)]' },
+  { key:'path',    label:'病理報告 (Pathology Report)',                      tag:'#[病理報告(Pathology Report)]' },
+  { key:'dx',      label:'臆斷 (Tentative Diagnosis)',                       tag:'#[臆斷(Tentative Diagnosis)]' },
+  { key:'soap',    label:'醫療需求與治療計畫 (Medical Needs and Care Plan)', tag:'#[醫療需求與治療計畫(Medical Needs and Care Plan)]' },
+];
+
+function renderSections(raw, admitDate){
+  const parts = raw.split('===SECTION===').map(s=>s.trim());
+  const wrap = document.getElementById('sections-wrap');
+  wrap.innerHTML = '';
+
+  // Date header card
+  const meta = document.createElement('div');
+  meta.style.cssText='font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:2px;padding:6px 12px;background:white;border:1px solid var(--border);border-radius:var(--r)';
+  meta.textContent = `Admission Note · ${admitDate} · ${g('service')||'[Service]'} · Generated ${new Date().toLocaleTimeString('zh-TW')}`;
+  wrap.appendChild(meta);
+
+  SECTION_DEFS.forEach((def, i) => {
+    const content = (parts[i] || '').trim();
+    const card = document.createElement('div');
+    card.className = 'note-section';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'note-sec-hdr';
+    hdr.innerHTML = `<span class="note-sec-title">${def.label}</span><button class="copy-sec-btn" onclick="copySec(this, '${def.key}-${i}')">複製</button>`;
+
+    const body = document.createElement('div');
+    body.className = 'note-sec-body';
+    body.id = `sec-body-${def.key}-${i}`;
+    body.contentEditable = true;
+    body.spellcheck = false;
+    body.textContent = content || '[To be documented]';
+
+    card.appendChild(hdr);
+    card.appendChild(body);
+    wrap.appendChild(card);
+  });
+
+  wrap.style.display = 'flex';
+}
+
+function copySec(btn, id){
+  const el = document.getElementById(`sec-body-${id}`);
+  if(!el) return;
+  navigator.clipboard.writeText(el.textContent).then(()=>{
+    btn.textContent='✓ 已複製';
+    setTimeout(()=>btn.textContent='複製',2000);
+  });
+}
+
+function copyAll(){
+  const bodies = document.querySelectorAll('.note-sec-body');
+  if(!bodies.length) return;
+  const defs = SECTION_DEFS;
+  let full = '';
+  bodies.forEach((b,i)=>{
+    full += defs[i].tag + '\n' + b.textContent + '\n\n';
+  });
+  navigator.clipboard.writeText(full.trim()).then(()=>{
+    const btn = document.querySelector('.tbtn');
+    btn.textContent='✓ 已複製全文';
+    setTimeout(()=>btn.textContent='複製全文',2500);
+  });
+}
+
+function clearAll(){
+  document.getElementById('sections-wrap').style.display='none';
+  document.getElementById('sections-wrap').innerHTML='';
+  document.getElementById('empty-state').style.display='flex';
+}
+
+// Set today
+document.getElementById('admit-date').value = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
